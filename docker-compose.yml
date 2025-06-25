@@ -1,25 +1,26 @@
-version: '3'
-services:
-  db:
-    image: mysql:5.7
-    volumes:
-      - ./uvdeskdb:/var/lib/mysql
-    restart: always
-    environment:
-      MYSQL_DATABASE: uvdesk
-      MYSQL_ROOT_PASSWORD: yourpassword123
-      MYSQL_USER: uvdesk
-      MYSQL_PASSWORD: yourpassword123
-      
-  uvdesk:
-    image: nuttcorp/uvdesk:latest
-    depends_on:
-      - db
-    tty: true
-    environment:
-      MYSQL_USER: uvdesk
-      MYSQL_PASSWORD: yourpassword123
-      MYSQL_ROOT_PASSWORD: yourpassword123
-      MYSQL_DATABASE: uvdesk
-    ports:
-      - 8080:80
+services:                                                                                                                                  
+  db:                                                                                                                                      
+    image: mysql:8.0                                                                                                                       
+    platform: linux/amd64                                                                                                                  
+    volumes:                                                                                                                               
+      - ./uvdeskdb:/var/lib/mysql                                                                                                          
+    restart: always                                                                                                                        
+    environment:                                                                                                                           
+      MYSQL_DATABASE: uvdesk                                                                                                               
+      MYSQL_ROOT_PASSWORD: Sai@9347070314                                                                                                  
+      MYSQL_USER: uvdesk                                                                                                                   
+      MYSQL_PASSWORD: Sai@9347070314                                                                                                       
+                                                                                                                                           
+  uvdesk:                                                                                                                                  
+    image: nuttcorp/uvdesk:latest                                                                                                          
+    platform: linux/amd64                                                                                                                  
+    depends_on:                                                                                                                            
+      - db                                                                                                                                 
+    tty: true                                                                                                                              
+    environment:                                                                                                                           
+      MYSQL_USER: uvdesk                                                                                                                   
+      MYSQL_PASSWORD: Sai@9347070314                                                                                                       
+      MYSQL_ROOT_PASSWORD: Sai@9347070314                                                                                                  
+      MYSQL_DATABASE: uvdesk                                                                                                               
+    ports:                                                                                                                                 
+      - 8080:80      
