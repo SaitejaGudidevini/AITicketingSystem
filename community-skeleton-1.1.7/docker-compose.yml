@@ -1,0 +1,164 @@
+
+
+services:
+  # MySQL Database Service
+  db:
+    image: mysql:8.0
+    platform: linux/amd64
+    container_name: uvdesk_database
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: uvdesk
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-uvdesk_root_password}
+      MYSQL_USER: ${MYSQL_USER:-uvdesk}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-uvdesk_password}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - uvdesk_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+      start_period: 60s
+
+  # UVDesk Application Service
+  uvdesk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uvdesk_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Database Configuration
+      DATABASE_URL: "mysql://${MYSQL_USER:-uvdesk}:${MYSQL_PASSWORD:-uvdesk_password}@db:3306/${MYSQL_DATABASE:-uvdesk}?serverVersion=8.0"
+      
+      # Application Configuration
+      APP_ENV: ${APP_ENV:-prod}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_SECRET: ${APP_SECRET:-your-secret-key-here}
+      
+      # Mailer Configuration
+      MAILER_DSN: ${MAILER_DSN:-smtp://localhost:25}
+      
+      # UVDesk Specific Configuration
+      UVDESK_ENV: ${UVDESK_ENV:-prod}
+      
+      # MySQL Connection Details (for legacy compatibility)
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-uvdesk}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-uvdesk_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-uvdesk}
+      
+      # Timezone
+      TZ: ${TZ:-UTC}
+      
+      # PHP Configuration
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-512M}
+      PHP_MAX_EXECUTION_TIME: ${PHP_MAX_EXECUTION_TIME:-300}
+      PHP_UPLOAD_MAX_FILESIZE: ${PHP_UPLOAD_MAX_FILESIZE:-64M}
+      PHP_POST_MAX_SIZE: ${PHP_POST_MAX_SIZE:-64M}
+    
+    volumes:
+      # Application code and data persistence
+      - app_data:/var/www/uvdesk/var
+      - app_config:/var/www/uvdesk/config
+      - app_public:/var/www/uvdesk/public
+      - attachments:/var/www/uvdesk/public/attachments
+      
+      # Logs
+      - app_logs:/var/log/apache2
+      - uvdesk_logs:/var/www/uvdesk/var/log
+      
+      # Custom configuration files (if needed)
+      - ./custom/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      - ./custom/apache2.conf:/etc/apache2/conf-available/uvdesk.conf:ro
+    
+    ports:
+      - "${UVDESK_PORT:-8080}:80"
+    
+    networks:
+      - uvdesk_network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # Redis Cache Service (Optional but recommended for production)
+  redis:
+    image: redis:7-alpine
+    container_name: uvdesk_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-uvdesk_redis_password}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - uvdesk_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PhpMyAdmin (Optional - for database management)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: uvdesk_phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: ${MYSQL_USER:-uvdesk}
+      PMA_PASSWORD: ${MYSQL_PASSWORD:-uvdesk_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-uvdesk_root_password}
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    networks:
+      - uvdesk_network
+    profiles:
+      - tools
+
+# Named Volumes for Data Persistence
+volumes:
+  mysql_data:
+    driver: local
+  app_data:
+    driver: local
+  app_config:
+    driver: local
+  app_public:
+    driver: local
+  attachments:
+    driver: local
+  app_logs:
+    driver: local
+  uvdesk_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+# Custom Network
+networks:
+  uvdesk_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16 
